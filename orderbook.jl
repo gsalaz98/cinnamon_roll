@@ -31,7 +31,6 @@ function create_simple_orderbook(df::DataFrames.DataFrame, current_orderbook::Un
     # Orderbook information is contained as book deltas with the following headers:
     #     :ts, :seq, :is_trade, :is_bid, :price, :volume
     #
-    # Trades will be skipped over.
     #
     # Argument Descriptions
     # `df`: Orderbook deltas with headers [:ts, :seq, :is_trade, :is_bid, :price, :volume]
@@ -57,13 +56,7 @@ function create_simple_orderbook(df::DataFrames.DataFrame, current_orderbook::Un
     
     for delta in DataFrames.eachrow(df[df[:is_trade] .== false, :])
         # Set to nothing so that we can select a side and not have repeating code
-        side = nothing
-        
-        if delta[:is_bid]
-            side = bids
-        else
-            side = asks
-        end
+        side = delta[:is_bid] ? bids : asks
         
         if delta[:volume] == 0.0
             # Delete entry if size == 0.00
@@ -95,6 +88,19 @@ function create_simple_orderbook(df::DataFrames.DataFrame, current_orderbook::Un
         reverse(sort(collect(values(bids)))), 
         sort(collect(values(asks))))
     
+end
+
+@inline function book(book::Orderbook, mut_vector::Union{Array{Any}, Nothing}, 
+                      order::Union{DataFrames.DataFrameRow, Nothing}, ret_val::Bool=true)
+    # Returns the orderbook as is for further data analysis.
+    # TODO: add timestamp if variable `order` is something
+    if mut_vector != nothing
+        push!(mut_vector, book)
+    end
+    
+    if ret_val
+        return book
+    end
 end
 
 @inline function mid_price(book::Orderbook, mut_vector::Union{Array{Any}, Nothing}, 
@@ -152,6 +158,7 @@ end
                                           order::Union{DataFrames.DataFrameRow, Nothing}, ret_val::Bool=true,
                                           level::Int64=1)
     
+    # Gets the bid relative price at level `n`. Default is level=1
     if length(book.bids) > level
         if mut_vector != nothing
             if order == nothing
@@ -175,6 +182,7 @@ end
                                     order::Union{DataFrames.DataFrameRow, Nothing}, ret_val::Bool=true,
                                     price::Float64=1.0)
     
+    # Gets the ask relative price at level `n`. Default is level=1
     for (level_index, level) in enumerate(book.bids)
         if level.price == price
             if mut_vector != nothing
